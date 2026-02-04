@@ -16,7 +16,7 @@
             --accent-gold: #ffbc31;
         }
 
-        /* 交互保护：全局禁止选中，防止拖拽球体时误触文字复制 */
+        /* 极致交互保护：全局禁止选中 */
         * {
             user-select: none !important;
             -webkit-user-select: none !important;
@@ -35,7 +35,6 @@
             overflow: hidden; touch-action: none;
         }
 
-        /* 全屏 3D 渲染容器 */
         #canvas-container {
             position: absolute; inset: 0;
             z-index: 1; cursor: crosshair;
@@ -46,12 +45,11 @@
         .hud {
             position: absolute; top: 2rem; left: 2rem;
             pointer-events: none; z-index: 20;
-            transition: color 0.5s ease;
         }
         .sci-ui { font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent-blue); opacity: 0.7; }
         .formula { font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.5; color: var(--accent-blue); margin-top: 10px; padding: 12px; background: rgba(255,255,255,0.02); border-left: 2px solid var(--accent-blue); width: fit-content; }
 
-        /* 中心提示语 - 适当上移 */
+        /* 中心提示语 */
         #interaction-hint {
             position: absolute; top: 30%; left: 0; right: 0;
             text-align: center; font-size: 11px; letter-spacing: 5px; color: var(--accent-gold);
@@ -59,7 +57,7 @@
         }
         @keyframes breathe { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.5; } }
 
-        /* 右上角控制：大脑与彩虹 */
+        /* 右上角控制栏 */
         .control-panel {
             position: absolute; top: 2rem; right: 2rem;
             display: flex; flex-direction: column; gap: 1rem;
@@ -78,7 +76,7 @@
         }
         .control-icon:hover { transform: scale(1.1); background: rgba(255, 255, 255, 0.15); }
 
-        /* 右上角展开的光谱滑块 */
+        /* 光谱滑块 */
         #spectrum-picker {
             position: absolute; top: 75px; right: 80px;
             width: 280px; height: 38px;
@@ -92,7 +90,7 @@
             border-radius: 3px; box-shadow: 0 0 10px white;
         }
 
-        /* 核心对话系统 - 保持在底部 */
+        /* 核心对话系统面板 */
         #voice-system {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
             display: flex; flex-direction: column; align-items: center;
@@ -111,27 +109,27 @@
         .pulse-dot { width: 4px; height: 4px; background: var(--accent-gold); border-radius: 50%; animation: pulse 1s infinite; }
         #chat-text { font-size: 14px; line-height: 1.7; font-style: italic; opacity: 0.95; margin: 0; }
 
-        /* 功能三键平行布局 */
+        /* 功能三键平行 */
         .ai-controls { display: flex; gap: 10px; margin-bottom: 15px; width: 100%; }
         .ai-btn {
             flex: 1; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255,255,255,0.1);
-            padding: 10px 0; border-radius: 22px; font-size: 10px; color: rgba(255,255,255,0.9);
+            padding: 9px 0; border-radius: 22px; font-size: 10px; color: rgba(255,255,255,0.9);
             cursor: pointer; transition: all 0.2s; font-family: 'Courier New', monospace;
         }
         .ai-btn:hover { background: rgba(255, 255, 255, 0.12); border-color: var(--accent-gold); }
 
         #voice-btn {
-            width: 4rem; height: 4rem; border-radius: 50%;
+            width: 3.8rem; height: 3.8rem; border-radius: 50%;
             background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255,255,255,0.2);
             display: flex; align-items: center; justify-content: center; cursor: pointer;
             position: relative; transition: all 0.3s;
         }
         #voice-btn.listening { background: var(--accent-pink); border-color: transparent; }
-        .voice-ripple { position: absolute; inset: -15px; border-radius: 50%; border: 2px solid var(--accent-pink); opacity: 0; pointer-events: none; }
+        .voice-ripple { position: absolute; inset: -12px; border-radius: 50%; border: 2px solid var(--accent-pink); opacity: 0; pointer-events: none; }
         #voice-btn.listening .voice-ripple { animation: ripple 1.5s infinite; }
         @keyframes ripple { 0% { transform: scale(0.9); opacity: 0.7; } 100% { transform: scale(1.6); opacity: 0; } }
 
-        /* 审计存档层 */
+        /* 复盘浮层 */
         #overlay-layer {
             position: absolute; inset: 0;
             background: radial-gradient(circle at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.98) 100%);
@@ -155,31 +153,27 @@
     </div>
 
     <div class="hud" id="hud">
-        <div class="sci-ui">Mary's Core: Web OS 5.1</div>
+        <div class="sci-ui">Mary's Core: Web OS 6.0</div>
         <h1 id="main-title" class="text-2xl font-bold mt-2 tracking-[0.3em]">玛丽的房间</h1>
         <div class="formula">> VELOCITY: <span id="vel-val">1.00</span>x<br>> SENSITIVITY: MAX</div>
     </div>
 
     <div id="interaction-hint">拖拽底部感质球或使用右上角光谱</div>
 
-    <!-- 右上角控制栏 -->
     <div class="control-panel">
         <div class="control-icon" onclick="resetState()" title="内存重置归零">🧠</div>
         <div class="control-icon" onclick="event.stopPropagation(); togglePalette();" title="感质色谱选择">🌈</div>
     </div>
 
-    <!-- 光谱条 -->
     <div id="spectrum-picker" onclick="event.stopPropagation()">
         <div id="spectrum-handle"></div>
     </div>
 
-    <!-- 全屏复盘浮层 -->
     <div id="overlay-layer">
         <div class="scroll-container" id="container-inner"></div>
         <button onclick="closeOverlay()" class="ai-btn mt-10 w-40">CLOSE_ARCHIVE</button>
     </div>
 
-    <!-- 对话系统面板 -->
     <div id="voice-system">
         <div id="chat-bubble">
             <div class="digital-human-tag"><div class="pulse-dot"></div><span id="bot-tag">MARY_CORE_READY</span></div>
@@ -192,7 +186,7 @@
             <button class="ai-btn" onclick="generateDiary()">📋 意识审计</button>
         </div>
 
-        <div id="voice-btn" onclick="toggleManualRecording()" title="点按开启/关闭录音">
+        <div id="voice-btn" onclick="toggleManualRecording()">
             <div class="voice-ripple"></div>
             <div class="voice-ripple" style="animation-delay: 0.5s"></div>
             <svg id="voice-icon" class="w-6 h-6 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -204,8 +198,8 @@
     <div class="copyright-tag sci-ui">@云树cloudtree</div>
 
     <script>
-        const apiKey = ""; 
-        let scene, camera, renderer, flower, dataNodes = [], points, shards = [];
+        const apiKey = ""; // 不再需要 Key，由后端处理
+        let scene, camera, renderer, flower, dataNodes = [], points;
         let mouse, mouseTarget, targetCamPos; 
         let isColorMode = false, isDeepMode = false, isOverlayActive = false, draggingNode = null, isListening = false;
         let userVelocityMultiplier = 1.0, targetVelocityMultiplier = 1.0;
@@ -286,13 +280,11 @@
             animate();
         }
 
-        // 核心改动：色球位置显著下移 (Y 轴从 -1.8 改为 -4.2)
         function createDataNodes() {
             const colors = [0xe71f61, 0x72b5df, 0xffbc31];
             dataNodes.forEach(node => scene.remove(node)); dataNodes = [];
             colors.forEach((c, i) => {
                 const node = new THREE.Mesh(new THREE.SphereGeometry(0.38, 32, 32), new THREE.MeshBasicMaterial({ color: c }));
-                // 显著下移，让其处于对话系统面板上方且远离中心
                 node.position.set(-4.0 + i*4.0, -4.2, 1.5); node.userData = { color: c };
                 scene.add(node); dataNodes.push(node);
             });
@@ -304,7 +296,6 @@
             userVelocityMultiplier += (targetVelocityMultiplier - userVelocityMultiplier) * 0.1;
             camera.position.lerp(targetCamPos, 0.08); camera.lookAt(0,0,0);
             flower.rotation.y += isOverlayActive ? 0.0002 : 0.0015 * userVelocityMultiplier;
-            
             const pos = points.geometry.attributes.position.array, init = points.geometry.attributes.initialPos.array;
             mouseTarget.lerp(mouse, 0.15);
             for (let i = 0; i < pos.length / 3; i++) {
@@ -360,9 +351,9 @@
         async function chatWithMary(query) {
             if (!query) return; latestTopic = query; chatHistory.push({ role: "USER", text: query });
             safeUpdateUI('bot-tag', el => el.innerText = "MARY_PROCESSING...");
-            const system = "你现在是玛丽。给出最简练的一句话反馈。强制剔除 [cite: none] 等元数据。禁止输出诗。";
             try {
-                const data = await fetchAI(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, { contents: [{parts: [{text: query}]}], systemInstruction: {parts: [{text: system}]}, tools: [{ "google_search": {} }] });
+                // 网址已改为后端代理
+                const data = await fetchAI('/api/chat', { contents: [{parts: [{text: query}]}] }); 
                 let reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
                 if (reply) { 
                     reply = reply.replace(/\[cite:.*?\]/g, "").trim(); 
@@ -378,9 +369,10 @@
             const container = document.getElementById('container-inner');
             safeUpdateUI('overlay-layer', el => el.classList.add('visible'));
             container.innerHTML = "<div class='sci-ui'>[INITIATING_BREAKDOWN...]</div>";
-            const prompt = `深度拆解 '${latestTopic}'。JSON：{"thesis": "核心命题", "paradox": "逻辑悖论", "synthesis": "总结"}。禁止写诗。`;
+            const prompt = `深度拆解 '${latestTopic}'。JSON：{"thesis": "命题", "paradox": "悖论", "synthesis": "总结"}。禁止写诗。`;
             try {
-                const data = await fetchAI(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, { contents: [{parts: [{text: prompt}]}], generationConfig: { responseMimeType: "application/json" } });
+                // 网址已改为后端代理，带上 JSON 标识
+                const data = await fetchAI('/api/chat', { contents: [{parts: [{text: prompt}]}], generationConfig: { responseMimeType: "application/json" } });
                 const report = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text);
                 container.innerHTML = "<div class='sci-ui mb-6'>[LOGIC_EVOLUTION_REPORT]</div>";
                 [{label: "THESIS", text: report.thesis}, {label: "PARADOX", text: report.paradox}, {label: "SYNTHESIS", text: report.synthesis}].forEach((s, i) => {
@@ -397,7 +389,8 @@
             if (!latestTopic) return; showText(`✨ 重组粒子 [${latestTopic}]...`);
             const prompt = `判定话题意象：SUN, VOID, STRUCTURE, CHAOS, ROSE.`;
             try {
-                const data = await fetchAI(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, { contents: [{parts: [{text: latestTopic + "\n" + prompt}]}] });
+                // 网址已改为后端代理
+                const data = await fetchAI('/api/chat', { contents: [{parts: [{text: latestTopic + "\n" + prompt}]}] });
                 const shape = (data.candidates?.[0]?.content?.parts?.[0]?.text || "ROSE").toUpperCase().trim();
                 const init = points.geometry.attributes.initialPos.array;
                 for (let i = 0; i < init.length / 3; i++) {
@@ -412,7 +405,7 @@
                 }
                 points.geometry.attributes.initialPos.needsUpdate = true;
                 points.material.color.setHex(shape.includes("SUN") ? 0xffbc31 : (shape.includes("VOID") ? 0x222222 : 0x72b5df));
-                showText(`粒子意象定格: ${shape}`);
+                showText(`意象定格: ${shape}`);
             } catch (e) {}
         }
 
@@ -424,7 +417,8 @@
             const session = chatHistory.map(h => `[${h.role}]: ${h.text}`).join('\n');
             const prompt = `生成审计报告 JSON：{"trace": "归纳", "echo": "反馈", "decode": "总结"}。`;
             try {
-                const data = await fetchAI(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, { contents: [{parts: [{text: session + "\n" + prompt}]}], generationConfig: { responseMimeType: "application/json" } });
+                // 网址已改为后端代理
+                const data = await fetchAI('/api/chat', { contents: [{parts: [{text: session + "\n" + prompt}]}], generationConfig: { responseMimeType: "application/json" } });
                 const report = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text);
                 container.innerHTML = "<div class='sci-ui mb-6'>[CONSCIOUSNESS_ARCHIVE_AUDIT]</div>";
                 [{label: "THOUGHT_TRACE", text: report.trace}, {label: "NEURAL_ECHO", text: report.echo}, {label: "EXISTENTIAL_DECODE", text: report.decode}].forEach((s, i) => {
@@ -470,9 +464,9 @@
             recognition.onstart = () => {
                 isListening = true;
                 safeUpdateUI('voice-btn', el => el.classList.add('listening'));
-                safeUpdateUI('bot-tag', el => el.innerText = "LISTENING_MANUAL...");
+                safeUpdateUI('bot-tag', el => el.innerText = "RECORDING...");
                 currentRecognizedText = "";
-                showText("正在倾听...（说完再次点击）");
+                showText("我在听...（说完再次点击）");
             };
             recognition.onresult = (e) => {
                 let interim = '';
@@ -491,7 +485,7 @@
             else {
                 recognition.stop();
                 const finalStr = currentRecognizedText || document.getElementById('chat-text').innerText;
-                if (finalStr && !finalStr.includes("正在倾听")) { chatWithMary(finalStr); }
+                if (finalStr && !finalStr.includes("我在听")) { chatWithMary(finalStr); }
             }
         }
 

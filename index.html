@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mary's Room | 桌面全屏意识系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;700&display=swap');
+
+        :root {
+            --bg-dark: #050505;
+            --accent-pink: #e71f61;
+            --accent-blue: #72b5df;
+            --accent-gold: #ffbc31;
+        }
+
+        /* 交互保护：全局禁止选中，防止拖拽球体时误触文字复制 */
+        * {
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -webkit-touch-callout: none !important;
+            -webkit-tap-highlight-color: transparent;
+        }
+        input { user-select: text !important; -webkit-user-select: text !important; }
+
+        body {
+            font-family: 'Noto Serif SC', serif;
+            background-color: #000;
+            color: #f8f8f8;
+            margin: 0; padding: 0;
+            height: 100vh; width: 100vw;
+            display: flex; flex-direction: column;
+            overflow: hidden; touch-action: none;
+        }
+
+        /* 全屏 3D 渲染容器 */
+        #canvas-container {
+            position: absolute; inset: 0;
+            z-index: 1; cursor: crosshair;
+        }
+        #three-canvas { width: 100%; height: 100%; }
+
+        /* HUD 系统参数 */
+        .hud {
+            position: absolute; top: 2rem; left: 2rem;
+            pointer-events: none; z-index: 20;
+            transition: color 0.5s ease;
+        }
+        .sci-ui { font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent-blue); opacity: 0.7; }
+        .formula { font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.5; color: var(--accent-blue); margin-top: 10px; padding: 12px; background: rgba(255,255,255,0.02); border-left: 2px solid var(--accent-blue); width: fit-content; }
+
+        /* 中心提示语 - 适当上移 */
+        #interaction-hint {
+            position: absolute; top: 30%; left: 0; right: 0;
+            text-align: center; font-size: 11px; letter-spacing: 5px; color: var(--accent-gold);
+            animation: breathe 3s infinite; pointer-events: none; z-index: 10;
+        }
+        @keyframes breathe { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.5; } }
+
+        /* 右上角控制：大脑与彩虹 */
+        .control-panel {
+            position: absolute; top: 2rem; right: 2rem;
+            display: flex; flex-direction: column; gap: 1rem;
+            z-index: 500;
+        }
+        .control-icon {
+            width: 52px; height: 52px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            transition: all 0.3s;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .control-icon:hover { transform: scale(1.1); background: rgba(255, 255, 255, 0.15); }
+
+        /* 右上角展开的光谱滑块 */
+        #spectrum-picker {
+            position: absolute; top: 75px; right: 80px;
+            width: 280px; height: 38px;
+            background: linear-gradient(to right, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff00ff);
+            border-radius: 19px; border: 2.5px solid rgba(255,255,255,0.25);
+            display: none; cursor: crosshair; z-index: 501;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.7);
+        }
+        #spectrum-handle {
+            width: 6px; height: 100%; background: white; position: absolute; top: 0; pointer-events: none;
+            border-radius: 3px; box-shadow: 0 0 10px white;
+        }
+
+        /* 核心对话系统 - 保持在底部 */
+        #voice-system {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; align-items: center;
+            opacity: 0; transition: all 0.6s cubic-bezier(0.2, 1, 0.2, 1);
+            pointer-events: none; z-index: 60; width: 640px; max-width: 95%;
+        }
+        #voice-system.active { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+
+        #chat-bubble {
+            width: 100%; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(40px);
+            padding: 0; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 1rem; text-align: center; max-height: 180px; overflow-y: auto;
+        }
+        #chat-bubble.has-content { padding: 1.5rem; opacity: 1; }
+        .digital-human-tag { font-family: 'Courier New', monospace; font-size: 8px; color: var(--accent-gold); margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 4px; }
+        .pulse-dot { width: 4px; height: 4px; background: var(--accent-gold); border-radius: 50%; animation: pulse 1s infinite; }
+        #chat-text { font-size: 14px; line-height: 1.7; font-style: italic; opacity: 0.95; margin: 0; }
+
+        /* 功能三键平行布局 */
+        .ai-controls { display: flex; gap: 10px; margin-bottom: 15px; width: 100%; }
+        .ai-btn {
+            flex: 1; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px 0; border-radius: 22px; font-size: 10px; color: rgba(255,255,255,0.9);
+            cursor: pointer; transition: all 0.2s; font-family: 'Courier New', monospace;
+        }
+        .ai-btn:hover { background: rgba(255, 255, 255, 0.12); border-color: var(--accent-gold); }
+
+        #voice-btn {
+            width: 4rem; height: 4rem; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255,255,255,0.2);
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            position: relative; transition: all 0.3s;
+        }
+        #voice-btn.listening { background: var(--accent-pink); border-color: transparent; }
+        .voice-ripple { position: absolute; inset: -15px; border-radius: 50%; border: 2px solid var(--accent-pink); opacity: 0; pointer-events: none; }
+        #voice-btn.listening .voice-ripple { animation: ripple 1.5s infinite; }
+        @keyframes ripple { 0% { transform: scale(0.9); opacity: 0.7; } 100% { transform: scale(1.6); opacity: 0; } }
+
+        /* 审计存档层 */
+        #overlay-layer {
+            position: absolute; inset: 0;
+            background: radial-gradient(circle at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.98) 100%);
+            z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 3rem; opacity: 0; pointer-events: none; transition: opacity 0.8s ease;
+        }
+        #overlay-layer.visible { opacity: 1; pointer-events: auto; }
+        .scroll-container { width: 100%; max-width: 600px; max-height: 80%; overflow-y: auto; }
+        .report-section { margin-bottom: 2rem; border-left: 2.5px solid var(--accent-gold); padding-left: 20px; opacity: 0; transform: translateY(10px); transition: all 0.5s ease; }
+        .report-section.show { opacity: 1; transform: translateY(0); }
+        .report-label { font-family: 'Courier New', monospace; font-size: 11px; color: var(--accent-gold); letter-spacing: 2px; margin-bottom: 10px; }
+        .report-text { font-size: 14px; line-height: 1.8; color: rgba(255,255,255,0.9); text-align: justify; }
+
+        .copyright-tag { position: absolute; right: 2rem; bottom: 2rem; opacity: 0.15; font-size: 9px; }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        <canvas id="three-canvas"></canvas>
+    </div>
+
+    <div class="hud" id="hud">
+        <div class="sci-ui">Mary's Core: Web OS 5.1</div>
+        <h1 id="main-title" class="text-2xl font-bold mt-2 tracking-[0.3em]">玛丽的房间</h1>
+        <div class="formula">> VELOCITY: <span id="vel-val">1.00</span>x<br>> SENSITIVITY: MAX</div>
+    </div>
+
+    <div id="interaction-hint">拖拽底部感质球或使用右上角光谱</div>
+
+    <!-- 右上角控制栏 -->
+    <div class="control-panel">
+        <div class="control-icon" onclick="resetState()" title="内存重置归零">🧠</div>
+        <div class="control-icon" onclick="event.stopPropagation(); togglePalette();" title="感质色谱选择">🌈</div>
+    </div>
+
+    <!-- 光谱条 -->
+    <div id="spectrum-picker" onclick="event.stopPropagation()">
+        <div id="spectrum-handle"></div>
+    </div>
+
+    <!-- 全屏复盘浮层 -->
+    <div id="overlay-layer">
+        <div class="scroll-container" id="container-inner"></div>
+        <button onclick="closeOverlay()" class="ai-btn mt-10 w-40">CLOSE_ARCHIVE</button>
+    </div>
+
+    <!-- 对话系统面板 -->
+    <div id="voice-system">
+        <div id="chat-bubble">
+            <div class="digital-human-tag"><div class="pulse-dot"></div><span id="bot-tag">MARY_CORE_READY</span></div>
+            <p id="chat-text"></p>
+        </div>
+        
+        <div class="ai-controls">
+            <button class="ai-btn" onclick="evolveLogic()">⚡ 逻辑演化</button>
+            <button class="ai-btn" onclick="manifestParticle()">✨ 意象重组</button>
+            <button class="ai-btn" onclick="generateDiary()">📋 意识审计</button>
+        </div>
+
+        <div id="voice-btn" onclick="toggleManualRecording()" title="点按开启/关闭录音">
+            <div class="voice-ripple"></div>
+            <div class="voice-ripple" style="animation-delay: 0.5s"></div>
+            <svg id="voice-icon" class="w-6 h-6 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+            </svg>
+        </div>
+    </div>
+
+    <div class="copyright-tag sci-ui">@云树cloudtree</div>
+
+    <script>
+        const apiKey = ""; 
+        let scene, camera, renderer, flower, dataNodes = [], points, shards = [];
+        let mouse, mouseTarget, targetCamPos; 
+        let isColorMode = false, isDeepMode = false, isOverlayActive = false, draggingNode = null, isListening = false;
+        let userVelocityMultiplier = 1.0, targetVelocityMultiplier = 1.0;
+        let chatHistory = [], latestTopic = "", currentRecognizedText = "";
+        let audioCtxWaked = false, originalParticlePos = null;
+
+        function wakeAudio() {
+            if (audioCtxWaked) return;
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (ctx.state === 'suspended') ctx.resume();
+            audioCtxWaked = true;
+        }
+
+        function safeUpdateUI(id, action) {
+            const el = document.getElementById(id);
+            if (el) action(el);
+        }
+
+        function init() {
+            mouse = new THREE.Vector2(0, 0); mouseTarget = new THREE.Vector2(0, 0); targetCamPos = new THREE.Vector3(0, 0, 8);
+            scene = new THREE.Scene(); 
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000); 
+            camera.position.copy(targetCamPos);
+            
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            flower = new THREE.Group();
+            const petalCount = 12000;
+            const posArray = new Float32Array(petalCount * 3), initialPos = new Float32Array(petalCount * 3);
+            for(let i=0; i<petalCount; i++) {
+                const phi = Math.random() * Math.PI * 2, theta = Math.acos(Math.random() * 2 - 1), r = 2.2 + Math.pow(Math.random(), 3) * 4.2;
+                posArray[i*3] = r * Math.sin(theta) * Math.cos(phi); 
+                posArray[i*3+1] = r * Math.sin(theta) * Math.sin(phi); 
+                posArray[i*3+2] = r * Math.cos(theta);
+                initialPos[i*3] = posArray[i*3]; initialPos[i*3+1] = posArray[i*3+1]; initialPos[i*3+2] = posArray[i*3+2];
+            }
+            originalParticlePos = new Float32Array(initialPos);
+            const partGeo = new THREE.BufferGeometry();
+            partGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            partGeo.setAttribute('initialPos', new THREE.BufferAttribute(initialPos, 3));
+            points = new THREE.Points(partGeo, new THREE.PointsMaterial({ size: 0.03, color: 0x444444, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending }));
+            flower.add(points);
+            scene.add(flower); 
+            createDataNodes();
+            
+            window.addEventListener('wheel', (e) => {
+                if (isOverlayActive) return;
+                targetVelocityMultiplier += e.deltaY * -0.001; targetVelocityMultiplier = Math.max(0.1, Math.min(targetVelocityMultiplier, 5.0));
+                safeUpdateUI('vel-val', el => el.innerText = targetVelocityMultiplier.toFixed(2));
+            }, { passive: true });
+
+            window.addEventListener('mousemove', (e) => {
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                if (draggingNode) {
+                    const v = new THREE.Vector3(mouse.x, mouse.y, 0.5).unproject(camera); 
+                    const dir = v.sub(camera.position).normalize();
+                    draggingNode.position.copy(camera.position.clone().add(dir.multiplyScalar(-camera.position.z / dir.z)));
+                    if (draggingNode.position.length() < 1.8) triggerQualiaFromColor(draggingNode.userData.color);
+                }
+            });
+
+            window.addEventListener('mousedown', (e) => {
+                const ray = new THREE.Raycaster(); ray.setFromCamera(mouse, camera);
+                const its = ray.intersectObjects(dataNodes);
+                if (its.length > 0) draggingNode = its[0].object; 
+                else if (isColorMode && !isOverlayActive) toggleDeepExplore();
+            });
+
+            window.addEventListener('mouseup', () => draggingNode = null);
+            
+            const picker = document.getElementById('spectrum-picker');
+            picker.addEventListener('mousedown', (e) => pickSpectrumColor(e));
+            picker.addEventListener('mousemove', (e) => { if(e.buttons === 1) pickSpectrumColor(e); });
+
+            animate();
+        }
+
+        // 核心改动：色球位置显著下移 (Y 轴从 -1.8 改为 -4.2)
+        function createDataNodes() {
+            const colors = [0xe71f61, 0x72b5df, 0xffbc31];
+            dataNodes.forEach(node => scene.remove(node)); dataNodes = [];
+            colors.forEach((c, i) => {
+                const node = new THREE.Mesh(new THREE.SphereGeometry(0.38, 32, 32), new THREE.MeshBasicMaterial({ color: c }));
+                // 显著下移，让其处于对话系统面板上方且远离中心
+                node.position.set(-4.0 + i*4.0, -4.2, 1.5); node.userData = { color: c };
+                scene.add(node); dataNodes.push(node);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!renderer || !camera || !mouse || !points) return;
+            userVelocityMultiplier += (targetVelocityMultiplier - userVelocityMultiplier) * 0.1;
+            camera.position.lerp(targetCamPos, 0.08); camera.lookAt(0,0,0);
+            flower.rotation.y += isOverlayActive ? 0.0002 : 0.0015 * userVelocityMultiplier;
+            
+            const pos = points.geometry.attributes.position.array, init = points.geometry.attributes.initialPos.array;
+            mouseTarget.lerp(mouse, 0.15);
+            for (let i = 0; i < pos.length / 3; i++) {
+                if (isOverlayActive) {
+                    pos[i*3] += Math.sin(Date.now() * 0.0008 + i) * 0.002;
+                    pos[i*3+1] += Math.cos(Date.now() * 0.0008 + i) * 0.002;
+                } else {
+                    const dx = mouseTarget.x * (6.0 * camera.aspect) - init[i*3], dy = mouseTarget.y * 6.0 - init[i*3+1], dist = Math.sqrt(dx*dx + dy*dy);
+                    const force = Math.max(0, (2.8 - dist) * 0.4); 
+                    if (isDeepMode) {
+                        const offset = Math.sin(Date.now() * 0.001 * userVelocityMultiplier + i*0.05) * 0.05;
+                        pos[i*3] = init[i*3] * (1 + offset) + (init[i*3] - mouseTarget.x*6) * force * 0.3;
+                        pos[i*3+1] = init[i*3+1] * (1 + offset) + (init[i*3+1] - mouseTarget.y*6) * force * 0.3;
+                    } else {
+                        pos[i*3] += (init[i*3] + (init[i*3] - mouseTarget.x*6) * force - pos[i*3]) * 0.15;
+                        pos[i*3+1] += (init[i*3+1] + (init[i*3+1] - mouseTarget.y*6) * force - pos[i*3+1]) * 0.15;
+                    }
+                }
+            }
+            points.geometry.attributes.position.needsUpdate = true;
+            renderer.render(scene, camera);
+        }
+
+        function togglePalette() { const p = document.getElementById('spectrum-picker'); p.style.display = p.style.display === 'block' ? 'none' : 'block'; }
+        function hidePalette() { document.getElementById('spectrum-picker').style.display = 'none'; }
+        function pickSpectrumColor(e) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            const color = new THREE.Color().setHSL(x / rect.width, 0.8, 0.5);
+            document.getElementById('spectrum-handle').style.left = `${x}px`;
+            triggerQualiaFromColor(color.getHex());
+        }
+
+        function triggerQualiaFromColor(hex) {
+            isColorMode = true; dataNodes.forEach(n => n.visible = false);
+            points.material.color.setHex(hex); points.material.size = 0.05;
+            safeUpdateUI('hud', el => el.style.color = '#' + hex.toString(16).padStart(6, '0'));
+            safeUpdateUI('interaction-hint', el => el.style.opacity = 0);
+            safeUpdateUI('main-title', el => el.innerText = "感质已激活");
+        }
+
+        async function fetchAI(url, body) {
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const res = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+                    if (res.ok) return await res.json();
+                } catch (e) {}
+                await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
+            }
+            throw new Error("Timeout");
+        }
+
+        async function chatWithMary(query) {
+            if (!query) return; latestTopic = query; chatHistory.push({ role: "USER", text: query });
+            safeUpdateUI('bot-tag', el => el.innerText = "MARY_PROCESSING...");
+            const system = "你现在是玛丽。给出最简练的一句话反馈。强制剔除 [cite: none] 等元数据。禁止输出诗。";
+            try {
+                const data = await fetchAI(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, { contents: [{parts: [{text: query}]}], systemInstruction: {parts: [{text: system}]}, tools: [{ "google_search": {} }] });
+                let reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (reply) { 
+                    reply = reply.replace(/\[cite:.*?\]/g, "").trim(); 
+                    chatHistory.push({ role: "MARY", text: reply }); 
+                    showText(reply); 
+                    safeUpdateUI('bot-tag', el => el.innerText = "MARY_CORE_READY");
+                }
+            } catch (err) { showText("连接断开..."); }
+        }
+
+        async function evolveLogic() {
+            if (!latestTopic) return; isOverlayActive = true;
+            const container = document.getElementById('container-inner');
+            safeUpdateUI('overlay-layer', el => el.classList.add('visible'));
+            container.innerHTML = "<div class='sci-ui'>[INITIATING_BREAKDOWN...]</div>";
+            const prompt = `深度拆解 '${latestTopic}'。JSON：{"thesis": "核心命题", "paradox": "逻辑悖论", "synthesis": "总结"}。禁止写诗。`;
+            try {
+                const data = await fetchAI(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, { contents: [{parts: [{text: prompt}]}], generationConfig: { responseMimeType: "application/json" } });
+                const report = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text);
+                container.innerHTML = "<div class='sci-ui mb-6'>[LOGIC_EVOLUTION_REPORT]</div>";
+                [{label: "THESIS", text: report.thesis}, {label: "PARADOX", text: report.paradox}, {label: "SYNTHESIS", text: report.synthesis}].forEach((s, i) => {
+                    setTimeout(() => {
+                        const div = document.createElement('div'); div.className = "report-section";
+                        div.innerHTML = `<div class="report-label">[${s.label}]</div><div class="report-text">${s.text}</div>`;
+                        container.appendChild(div); setTimeout(() => div.classList.add('show'), 50);
+                    }, i * 300);
+                });
+            } catch (err) { container.innerHTML = "<div class='sci-ui'>[FAILED]</div>"; }
+        }
+
+        async function manifestParticle() {
+            if (!latestTopic) return; showText(`✨ 重组粒子 [${latestTopic}]...`);
+            const prompt = `判定话题意象：SUN, VOID, STRUCTURE, CHAOS, ROSE.`;
+            try {
+                const data = await fetchAI(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, { contents: [{parts: [{text: latestTopic + "\n" + prompt}]}] });
+                const shape = (data.candidates?.[0]?.content?.parts?.[0]?.text || "ROSE").toUpperCase().trim();
+                const init = points.geometry.attributes.initialPos.array;
+                for (let i = 0; i < init.length / 3; i++) {
+                    if (shape.includes("SUN")) {
+                        const r = 2.5+Math.random()*0.5, p=Math.random()*Math.PI*2, t=Math.acos(Math.random()*2-1);
+                        init[i*3]=r*Math.sin(t)*Math.cos(p); init[i*3+1]=r*Math.sin(t)*Math.sin(p); init[i*3+2]=r*Math.cos(t);
+                    } else if (shape.includes("VOID")) {
+                        const r = 15+Math.random()*20; init[i*3]*=r/3; init[i*3+1]*=r/3; init[i*3+2]*=r/3;
+                    } else if (shape.includes("STRUCTURE")) {
+                        init[i*3]=(i%40-20)*0.4; init[i*3+1]=(Math.floor(i/40)%40-20)*0.4; init[i*3+2]=(Math.floor(i/1600)-5)*1.5;
+                    } else if (shape.includes("ROSE")) { for(let k=0; k<init.length; k++) init[k] = originalParticlePos[k]; }
+                }
+                points.geometry.attributes.initialPos.needsUpdate = true;
+                points.material.color.setHex(shape.includes("SUN") ? 0xffbc31 : (shape.includes("VOID") ? 0x222222 : 0x72b5df));
+                showText(`粒子意象定格: ${shape}`);
+            } catch (e) {}
+        }
+
+        async function generateDiary() {
+            if (chatHistory.length === 0) { showText("暂无数据。"); return; }
+            isOverlayActive = true; 
+            const container = document.getElementById('container-inner');
+            safeUpdateUI('overlay-layer', el => el.classList.add('visible'));
+            const session = chatHistory.map(h => `[${h.role}]: ${h.text}`).join('\n');
+            const prompt = `生成审计报告 JSON：{"trace": "归纳", "echo": "反馈", "decode": "总结"}。`;
+            try {
+                const data = await fetchAI(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, { contents: [{parts: [{text: session + "\n" + prompt}]}], generationConfig: { responseMimeType: "application/json" } });
+                const report = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text);
+                container.innerHTML = "<div class='sci-ui mb-6'>[CONSCIOUSNESS_ARCHIVE_AUDIT]</div>";
+                [{label: "THOUGHT_TRACE", text: report.trace}, {label: "NEURAL_ECHO", text: report.echo}, {label: "EXISTENTIAL_DECODE", text: report.decode}].forEach((s, i) => {
+                    setTimeout(() => {
+                        const div = document.createElement('div'); div.className = "report-section";
+                        div.innerHTML = `<div class="report-label">[${s.label}]</div><div class="report-text">${s.text}</div>`;
+                        container.appendChild(div); setTimeout(() => div.classList.add('show'), 50);
+                    }, i * 400);
+                });
+            } catch (err) { container.innerHTML = "<div class='sci-ui'>[FAILED]</div>"; }
+        }
+
+        function resetState() {
+            isColorMode = isDeepMode = isOverlayActive = false;
+            targetCamPos.set(0, 0, 8); targetVelocityMultiplier = 1.0;
+            if(points) { points.material.color.setHex(0x444444); points.material.size = 0.03; }
+            safeUpdateUI('hud', el => el.style.color = 'inherit');
+            safeUpdateUI('interaction-hint', el => el.style.opacity = 1);
+            safeUpdateUI('voice-system', el => el.classList.remove('active'));
+            safeUpdateUI('main-title', el => el.innerText = "玛丽的房间");
+            chatHistory = []; latestTopic = ""; showText(""); closeOverlay(); hidePalette();
+            if(points) {
+                const initArr = points.geometry.attributes.initialPos.array;
+                for(let i=0; i<initArr.length; i++) { initArr[i] = originalParticlePos[i]; }
+                points.geometry.attributes.initialPos.needsUpdate = true;
+            }
+            createDataNodes(); 
+        }
+
+        function closeOverlay() { isOverlayActive = false; safeUpdateUI('overlay-layer', el => el.classList.remove('visible')); }
+        function showText(msg) {
+            safeUpdateUI('chat-bubble', el => msg ? el.classList.add('has-content') : el.classList.remove('has-content'));
+            safeUpdateUI('chat-text', el => el.innerText = msg || "");
+        }
+
+        let recognition;
+        function initRecognition() {
+            if (recognition) return;
+            const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechAPI) return;
+            recognition = new SpeechAPI();
+            recognition.lang = 'zh-CN'; recognition.interimResults = true; recognition.continuous = true;
+            recognition.onstart = () => {
+                isListening = true;
+                safeUpdateUI('voice-btn', el => el.classList.add('listening'));
+                safeUpdateUI('bot-tag', el => el.innerText = "LISTENING_MANUAL...");
+                currentRecognizedText = "";
+                showText("正在倾听...（说完再次点击）");
+            };
+            recognition.onresult = (e) => {
+                let interim = '';
+                for (let i = e.resultIndex; i < e.results.length; ++i) {
+                    if (e.results[i].isFinal) currentRecognizedText += e.results[i][0].transcript;
+                    else interim += e.results[i][0].transcript;
+                }
+                showText(currentRecognizedText + interim);
+            };
+            recognition.onend = () => { isListening = false; safeUpdateUI('voice-btn', el => el.classList.remove('listening')); };
+        }
+
+        function toggleManualRecording() {
+            wakeAudio(); if (!recognition) initRecognition();
+            if (!isListening) { recognition.start(); } 
+            else {
+                recognition.stop();
+                const finalStr = currentRecognizedText || document.getElementById('chat-text').innerText;
+                if (finalStr && !finalStr.includes("正在倾听")) { chatWithMary(finalStr); }
+            }
+        }
+
+        function toggleDeepExplore() {
+            if (!isColorMode || isOverlayActive) return; isDeepMode = !isDeepMode;
+            if (isDeepMode) {
+                targetCamPos.set(0, 0, 2.2);
+                setTimeout(() => { if(isDeepMode) { safeUpdateUI('voice-system', el => el.classList.add('active')); showText("主观世界已开启。"); } }, 800);
+            } else { targetCamPos.set(0, 0, 8); }
+        }
+
+        window.onload = init;
+        window.addEventListener('resize', () => {
+            if (!renderer || !camera) return;
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+    </script>
+</body>
+</html>
